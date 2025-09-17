@@ -1,0 +1,1 @@
+select * from {{ ref('stg_chime__dispatch_plan') }}
