@@ -1,0 +1,15 @@
+# dbt generated files
+logs
+target
+dbt_packages
+
+# Python virtual environment
+venv
+.venv
+
+# IDE and OS specific files
+.vscode
+.idea
+*.pyc
+__pycache__/
+.DS_Store
