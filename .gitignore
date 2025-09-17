@@ -13,3 +13,19 @@ venv
 *.pyc
 __pycache__/
 .DS_Store
+
+# Your local venv name
+dbt-epl-env/
+
+# dbt extra artifacts
+dbt.log
+manifest.json
+run_results.json
+
+# Secrets / local config
+profiles.yml
+.env
+**/.env
+
+# Windows cruft
+Thumbs.db
