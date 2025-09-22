@@ -5,6 +5,6 @@ sources:
     description: Raw data loaded from Azure Blob Storage via external COPY INTO process
     schema: raw
     tables:
-      - name: DISPATCH_PLAN
-
       - name: SOLUTION
+
+    #  - name: DISPATCH_PLAN
