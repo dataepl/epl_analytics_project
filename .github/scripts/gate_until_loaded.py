@@ -11,6 +11,8 @@ def main():
     p.add_argument("--lookback-hours", type=int, default=24)
     args = p.parse_args()
 
+    db = os.environ.get("SNOWFLAKE_DATABASE", "EPL")
+    
     # Connection from env
     conn = snowflake.connector.connect(
         account=os.environ["SNOWFLAKE_ACCOUNT"],
@@ -18,7 +20,7 @@ def main():
         password=os.environ.get("SNOWFLAKE_PASSWORD"),
         role=os.environ["SNOWFLAKE_ROLE"],
         warehouse=os.environ["SNOWFLAKE_WAREHOUSE"],
-        database="EPL"
+        database=db
     )
 
     file_tail = args.file.split("/")[-1]  # match end of path
@@ -39,7 +41,7 @@ def main():
             LIMIT 1;
             """
             cur = conn.cursor()
-            cur.execute("USE SCHEMA EPL.RAW")
+            cur.execute(f"USE SCHEMA {db}.RAW")
             cur.execute(q)
             row = cur.fetchone()
             cur.close()
