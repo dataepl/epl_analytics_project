@@ -75,7 +75,7 @@ jobs:
                 client_session_keep_alive: false
       
                 # IMPORTANT: must be an integer, so cast env var to int.
-                threads: {{ env_var('DBT_THREADS', 4) | int }}
+                threads: "{{ env_var('DBT_THREADS', '4') | as_number }}"
       
               # Optional: production target you could switch to later by setting DBT_TARGET=prod
               prod:
@@ -88,7 +88,7 @@ jobs:
                 database: EPL
                 schema: marts
                 client_session_keep_alive: false
-                threads: {{ env_var('DBT_THREADS', 4) | int }}
+                threads: "{{ env_var('DBT_THREADS', '4') | as_number }}"
           YAML
 
       - name: Gate until Snowpipe loaded this file
