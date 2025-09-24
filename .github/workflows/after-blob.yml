@@ -63,9 +63,11 @@ jobs:
           python .github/scripts/gate_until_loaded.py --table "RAW.SOLUTION_BASE" --file "$FILE_NAME" --timeout 1800
 
       - name: dbt debug
+        working-directory: epl_analytics_project
         run: dbt debug --target ci
 
       - name: Build (staging + downstream marts)
+        working-directory: epl_analytics_project
         run: dbt build -s stg_chime__solution+ --target ci
 
       - name: Upload logs
