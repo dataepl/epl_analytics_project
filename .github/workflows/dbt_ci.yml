@@ -1,0 +1,50 @@
+name: dbt CI - Test on Pull Request
+
+on:
+  pull_request:
+    paths:
+      - 'epl_analytics_project/**'
+      - '.github/workflows/dbt_*.yml'
+
+jobs:
+  dbt_ci:
+    name: Validate dbt Changes
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install dbt
+        run: |
+          pip install dbt-core==1.7.* dbt-snowflake==1.7.*
+          
+      - name: Create profiles.yml
+        run: |
+          mkdir -p ~/.dbt
+          cat << EOF > ~/.dbt/profiles.yml
+          epl_analytics_project:
+            target: ci
+            outputs:
+              ci:
+                type: snowflake
+                account: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+                user: ${{ secrets.SNOWFLAKE_USER }}
+                password: ${{ secrets.SNOWFLAKE_PASSWORD }}
+                role: ${{ secrets.SNOWFLAKE_ROLE }}
+                database: ${{ secrets.SNOWFLAKE_DATABASE }}
+                warehouse: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+                schema: staging_ci_${{ github.event.pull_request.number }}
+                threads: 1
+          EOF
+          
+      - name: Run dbt compile
+        working-directory: ./epl_analytics_project
+        run: dbt compile
+        
+      - name: Run dbt tests in dry-run mode
+        working-directory: ./epl_analytics_project
+        run: dbt compile --select test_type:generic
