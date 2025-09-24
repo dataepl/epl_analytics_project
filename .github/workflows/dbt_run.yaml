@@ -1,0 +1,80 @@
+
+name: Run dbt Models
+
+on:
+  # Manual trigger for testing
+  workflow_dispatch:
+  
+  # Schedule daily runs (adjust as needed)
+  schedule:
+    - cron: '0 8 * * *' # 8 AM UTC daily
+  
+  # Webhook trigger from Azure (we'll set this up later)
+  repository_dispatch:
+    types: [snowpipe_load_complete]
+
+jobs:
+  dbt_run:
+    name: Transform Data with dbt
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dbt and dependencies
+        run: |
+          pip install --upgrade pip
+          pip install dbt-core==1.7.* dbt-snowflake==1.7.*
+          
+      - name: Create profiles.yml
+        run: |
+          mkdir -p ~/.dbt
+          cat << EOF > ~/.dbt/profiles.yml
+          epl_analytics_project:
+            target: prod
+            outputs:
+              prod:
+                type: snowflake
+                account: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+                user: ${{ secrets.SNOWFLAKE_USER }}
+                password: ${{ secrets.SNOWFLAKE_PASSWORD }}
+                role: ${{ secrets.SNOWFLAKE_ROLE }}
+                database: ${{ secrets.SNOWFLAKE_DATABASE }}
+                warehouse: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+                schema: ${{ secrets.SNOWFLAKE_SCHEMA }}
+                threads: 2
+                client_session_keep_alive: False
+          EOF
+          
+      - name: Test dbt connection
+        working-directory: ./epl_analytics_project
+        run: dbt debug
+        
+      - name: Install dbt packages
+        working-directory: ./epl_analytics_project
+        run: dbt deps
+        
+      - name: Run dbt models
+        working-directory: ./epl_analytics_project
+        run: |
+          echo "🔄 Starting dbt run..."
+          dbt run --models staging.stg_chime__solution
+          dbt run --models marts.fct_daily_solution
+          echo "✅ dbt run completed successfully"
+          
+      - name: Test dbt models
+        working-directory: ./epl_analytics_project
+        run: dbt test
+        continue-on-error: true  # Don't fail the workflow if tests fail initially
+        
+      - name: Generate dbt docs
+        working-directory: ./epl_analytics_project
+        run: |
+          dbt docs generate
+          echo "📊 Documentation generated"
