@@ -1,0 +1,79 @@
+name: Build dbt after Blob
+
+on:
+  repository_dispatch:
+    types: [blob-created]
+
+concurrency:
+  group: dbt-epl
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+      SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+      DBT_THREADS: ${{ secrets.DBT_THREADS || 4 }}
+      # From Logic App payload:
+      FILE_URL: ${{ github.event.client_payload.blob_url }}
+      FILE_NAME: ${{ github.event.client_payload.file_name }}
+      EVENT_TIME: ${{ github.event.client_payload.event_time }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install dbt-core dbt-snowflake snowflake-connector-python
+
+      - name: Write dbt profiles.yml
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml <<'YAML'
+          epl_analytics_project:
+            target: ci
+            outputs:
+              ci:
+                type: snowflake
+                account: ${SNOWFLAKE_ACCOUNT}
+                user: ${SNOWFLAKE_USER}
+                password: ${SNOWFLAKE_PASSWORD}
+                role: ${SNOWFLAKE_ROLE}
+                warehouse: ${SNOWFLAKE_WAREHOUSE}
+                database: EPL
+                schema: staging
+                client_session_keep_alive: false
+                threads: ${DBT_THREADS}
+          YAML
+
+      - name: Gate until Snowpipe loaded this file
+        run: |
+          echo "Waiting on file: $FILE_NAME from $FILE_URL"
+          python .github/scripts/gate_until_loaded.py --table "RAW.SOLUTION_BASE" --file "$FILE_NAME" --timeout 1800
+
+      - name: dbt debug
+        run: dbt debug --target ci
+
+      - name: Build (staging + downstream marts)
+        run: dbt build -s stg_chime__solution+ --target ci
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-logs
+          path: |
+            target/*
+            logs/*
+          if-no-files-found: ignore
