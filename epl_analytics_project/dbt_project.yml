@@ -31,8 +31,21 @@ clean-targets:         # directories to be removed by `dbt clean`
 # files using the `{{ config(...) }}` macro.
 models:
   epl_analytics_project:
+    +schema: STAGING            # default schema for the project
     # Config indicated by + and applies to all files under models/example/
     staging:
-      +materialized: view
+      +materialized: view           #  goes to STAGING (from profile)
     marts:
       +materialized: table
+      +schema: MARTS               # goes to MARTS (see macro below)
+
+# models:
+#   epl_analytics_project:
+#     +schema: staging            # default schema for the project
+
+#     staging:
+#       +materialized: view       # stays in STAGING (inherits +schema: staging)
+
+#     marts:
+#       +materialized: table
+#       +schema: marts            # send marts to the MARTS schema
