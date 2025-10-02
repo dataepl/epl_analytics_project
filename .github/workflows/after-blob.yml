@@ -90,11 +90,36 @@ jobs:
                 client_session_keep_alive: false
                 threads: "{{ env_var('DBT_THREADS', '4') | as_number }}"
           YAML
+      
+      # - name: Gate until Snowpipe loaded this file
+      #   run: |
+      #     echo "Waiting on file: $FILE_NAME from $FILE_URL"
+      #     python .github/scripts/gate_until_loaded.py --table "RAW.SOLUTION_BASE" --file "$FILE_NAME" --timeout 1800
+
+      - name: Determine target table
+        id: determine_table
+        run: |
+          echo "Determining table for file: $FILE_NAME"
+          if [[ "$FILE_NAME" == *"__Solution.csv"* ]]; then
+            echo "Detected Solution file"
+            echo "table=RAW.SOLUTION_BASE" >> $GITHUB_OUTPUT
+          elif [[ "$FILE_NAME" == *"__Routes.csv"* ]]; then
+            echo "Detected Routes file"
+            echo "table=RAW.ROUTES_BASE" >> $GITHUB_OUTPUT
+          else
+            echo "ERROR: Unknown file type: $FILE_NAME"
+            echo "Expected filename to contain either '__Solution.csv' or '__Routes.csv'"
+            exit 1
+          fi
 
       - name: Gate until Snowpipe loaded this file
         run: |
           echo "Waiting on file: $FILE_NAME from $FILE_URL"
-          python .github/scripts/gate_until_loaded.py --table "RAW.SOLUTION_BASE" --file "$FILE_NAME" --timeout 1800
+          echo "Target table: ${{ steps.determine_table.outputs.table }}"
+          python .github/scripts/gate_until_loaded.py \
+            --table "${{ steps.determine_table.outputs.table }}" \
+            --file "$FILE_NAME" \
+            --timeout 1800
 
       - name: dbt debug
         working-directory: epl_analytics_project
@@ -102,7 +127,7 @@ jobs:
 
       - name: Build (staging + downstream marts)
         working-directory: epl_analytics_project
-        run: dbt build -s stg_chime__solution+ --target ci
+        run: dbt build --target ci
 
       - name: Upload logs
         if: always()
