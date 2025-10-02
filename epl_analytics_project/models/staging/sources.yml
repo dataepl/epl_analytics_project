@@ -2,9 +2,11 @@ version: 2
 
 sources:
   - name: raw_data
-    description: Raw data loaded from Azure Blob Storage via external COPY INTO process
+    description: Raw data loaded from Azure Blob Storage via Snowpipe
     schema: raw
     tables:
       - name: SOLUTION
-
-    #  - name: DISPATCH_PLAN
+        description: DSP daily solution data (route assignments)
+      
+      - name: ROUTES
+        description: Driver routes data from DSP Logistics portal
