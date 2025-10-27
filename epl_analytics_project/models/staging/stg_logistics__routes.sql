@@ -2,27 +2,52 @@ with source as (
     select * from {{ source('raw_data', 'ROUTES') }}
 ),
 
+add_file_date as (
+    select 
+        *,
+        REGEXP_SUBSTR(source_file, '[0-9]{4}-[0-9]{2}-[0-9]{2}') AS file_date
+    from source
+),
+
+deduplicated as (
+    select 
+        * exclude rn
+    from (
+        select
+            *,
+            ROW_NUMBER() OVER (
+                PARTITION BY
+                    file_date,
+                    TRIM(route_code),
+                    TRIM(driver_name)
+                ORDER BY 
+                    COALESCE(loaded_at, CURRENT_TIMESTAMP()) DESC,
+                    source_file ASC
+            ) as rn
+        from add_file_date
+    )
+    qualify rn = 1
+),
+
 cleaned as (
     select 
-        -- Metadata
-        source_file,
-        source_row_number,
-        loaded_at,
+        -- Primary Key (composite) - matches solution table
+        file_date || '_' || TRIM(route_code) as route_pk,
         
-        -- Extract file date for partitioning
-        REGEXP_SUBSTR(source_file, '[0-9]{4}-[0-9]{2}-[0-9]{2}') AS file_date,
+        -- Date fields
+        file_date,
         
-        -- Route identifiers
-        route_code,
-        dsp,
-        transporter_id,
+        -- Identifiers (standardized)
+        'EPLC' as dsp,  -- Hard-coded because routes data doesn't have DSP
+        TRIM(route_code) as route_code,
+        TRIM(transporter_id) as transporter_id,
         
         -- Driver information
-        driver_name,
+        TRIM(driver_name) as driver_name,
         
         -- Route metrics
-        route_progress,
-        delivery_service_type,
+        TRIM(route_progress) as route_progress,
+        TRIM(delivery_service_type) as delivery_service_type,
         route_duration,
         
         -- Stop counts (convert to integers)
@@ -30,14 +55,12 @@ cleaned as (
         TRY_CAST(stops_complete AS INTEGER) AS stops_complete,
         TRY_CAST(not_started_stops AS INTEGER) AS not_started_stops,
         
-        -- -- Calculated metrics
-        -- CASE 
-        --     WHEN TRY_CAST(all_stops AS INTEGER) > 0 
-        --     THEN ROUND(TRY_CAST(stops_complete AS INTEGER) * 100.0 / TRY_CAST(all_stops AS INTEGER), 2)
-        --     ELSE NULL 
-        -- END AS completion_rate_pct
+        -- Metadata
+        source_file,
+        source_row_number,
+        loaded_at
         
-    from source
+    from deduplicated
 )
 
 select * from cleaned
